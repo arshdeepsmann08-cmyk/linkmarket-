@@ -1,0 +1,1 @@
+import { NextRequest, NextResponse } from "next/server"; import { requireAdmin } from "@/lib/auth"; import { prisma } from "@/lib/prisma"; export async function POST(req:NextRequest,{params}:{params:Promise<{id:string}>}){try{await requireAdmin();await prisma.product.delete({where:{id:(await params).id}})}catch{}return NextResponse.redirect(new URL("/admin",req.url))}

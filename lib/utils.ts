@@ -1,0 +1,1 @@
+export const currency=(n:number|string|{toString():string})=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(n.toString())); export const slugify=(s:string)=>s.toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");

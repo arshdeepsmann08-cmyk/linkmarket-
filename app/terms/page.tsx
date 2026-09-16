@@ -1,0 +1,1 @@
+export default function Terms(){return <div className="shell max-w-3xl py-14"><h1 className="text-4xl font-black">Terms of Use</h1><p className="mt-6 leading-8">LinkMarket is a product-discovery service. Merchant sites, prices, availability, returns and purchases are governed by the merchant’s terms. Do not misuse tracking links or attempt to manipulate clicks.</p></div>}

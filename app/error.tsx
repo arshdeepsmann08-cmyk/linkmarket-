@@ -1,0 +1,1 @@
+"use client"; export default function Error(){return <div className="shell py-20 text-center"><h1 className="text-3xl font-black">Something went wrong</h1><p className="mt-3 muted">Please try again in a moment.</p></div>}
