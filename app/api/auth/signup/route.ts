@@ -1,2 +1,7 @@
-import { NextRequest, NextResponse } from "next/server"; import bcrypt from "bcryptjs"; import { prisma } from "@/lib/prisma"; import { credentialsSchema } from "@/lib/validation"; import { makeSession } from "@/lib/auth";
-export async function POST(req:NextRequest){const form=Object.fromEntries(await req.formData());const parsed=credentialsSchema.safeParse(form);if(!parsed.success||!parsed.data.name)return NextResponse.redirect(new URL("/signup?error=invalid",req.url));try{const user=await prisma.user.create({data:{name:parsed.data.name,email:parsed.data.email.toLowerCase(),passwordHash:await bcrypt.hash(parsed.data.password,12)}});const res=NextResponse.redirect(new URL("/dashboard",req.url));res.cookies.set("linkmarket_session",await makeSession({id:user.id,name:user.name,email:user.email,role:user.role as "USER"|"ADMIN"}),{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",path:"/",maxAge:604800});return res}catch{return NextResponse.redirect(new URL("/signup?error=email",req.url))}}
+// This route is now deprecated — registration is handled by /api/auth/register
+// Kept as a redirect shim for backward compatibility.
+import { NextResponse } from "next/server";
+
+export async function POST() {
+  return NextResponse.redirect(new URL("/signup", process.env.NEXTAUTH_URL || "http://localhost:3000"));
+}
