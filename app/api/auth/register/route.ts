@@ -38,8 +38,15 @@ export async function POST(req: Request) {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const totalUsers = await prisma.user.count();
-    const role = totalUsers === 0 ? Role.ADMIN : Role.USER;
+    let role: Role = Role.USER;
+    try {
+      const totalUsers = await prisma.user.count();
+      if (totalUsers === 0) {
+        role = Role.ADMIN;
+      }
+    } catch (e) {
+      console.warn("Could not check user count for default admin, falling back to USER", e);
+    }
 
     const user = await prisma.user.create({
       data: {
@@ -64,10 +71,13 @@ export async function POST(req: Request) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Registration error:", error);
+    const detail = error?.message || String(error);
     return NextResponse.json(
-      { error: "An unexpected error occurred during registration." },
+      {
+        error: "Registration failed. Database error: " + (error?.code ? `[${error.code}] ` : "") + detail,
+      },
       { status: 500 }
     );
   }
