@@ -2,3 +2,5 @@ node_modules/
 .next/
 .env
 work/
+.vercel
+.env*
