@@ -8,17 +8,32 @@ export default async function AdminDashboard() {
   const recentlyAddedSince = new Date();
   recentlyAddedSince.setDate(recentlyAddedSince.getDate() - 30);
 
-  const [totalProducts, activeProducts, totalClicks, recentlyAdded, recentProducts] = await Promise.all([
-    prisma.product.count(),
-    prisma.product.count({ where: { isActive: true } }),
-    prisma.click.count(),
-    prisma.product.count({ where: { createdAt: { gte: recentlyAddedSince } } }),
-    prisma.product.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { category: true, _count: { select: { clicks: true } } },
-    }),
-  ]);
+  let totalProducts = 0;
+  let activeProducts = 0;
+  let totalClicks = 0;
+  let recentlyAdded = 0;
+  let recentProducts: any[] = [];
+
+  try {
+    const [tProducts, aProducts, tClicks, rAdded, rProducts] = await Promise.all([
+      prisma.product.count(),
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.click.count(),
+      prisma.product.count({ where: { createdAt: { gte: recentlyAddedSince } } }),
+      prisma.product.findMany({
+        take: 10,
+        orderBy: { createdAt: "desc" },
+        include: { category: true, _count: { select: { clicks: true } } },
+      }),
+    ]);
+    totalProducts = tProducts;
+    activeProducts = aProducts;
+    totalClicks = tClicks;
+    recentlyAdded = rAdded;
+    recentProducts = rProducts || [];
+  } catch (err) {
+    console.error("Error loading Admin Dashboard data:", err);
+  }
 
   return (
     <section>
@@ -37,7 +52,7 @@ export default async function AdminDashboard() {
       <section className="card mt-7 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-black">Recent products</h2>
+            <h2 className="text-xl font-black">Recent products ({recentProducts.length})</h2>
             <p className="mt-1 text-sm muted">Product clicks measure referrals, not purchases or commission.</p>
           </div>
           <Link href="/admin/products/new" className="btn btn-alt">
@@ -50,15 +65,15 @@ export default async function AdminDashboard() {
               <div>
                 <b>{product.title}</b>
                 <span className="ml-2 muted">
-                  {product.category.name} • {product.merchant}
+                  {product.category?.name || "General"} • {product.merchant || "Amazon India"}
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                <span>{product._count.clicks} clicks</span>
-                <span className={product.isActive ? "text-emerald-700" : "text-stone-500"}>
+                <span>{product._count?.clicks || 0} clicks</span>
+                <span className={product.isActive ? "text-emerald-700 font-semibold" : "text-stone-500"}>
                   {product.isActive ? "Active" : "Inactive"}
                 </span>
-                <Link href={`/admin/products/${product.id}/edit`} className="font-bold">
+                <Link href={`/admin/products/${product.id}/edit`} className="font-bold hover:underline">
                   Edit
                 </Link>
               </div>
