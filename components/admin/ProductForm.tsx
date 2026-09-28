@@ -90,7 +90,7 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
         type: "success",
         message: data.hasPaApi
           ? `Successfully imported "${data.title.slice(0, 40)}..." via Amazon PA API!`
-          : `Imported "${data.title.slice(0, 40)}..." from Amazon metadata! Verify the price and details below.`,
+          : `Imported "${data.title.slice(0, 40)}..." from Amazon metadata! Review the fields below before saving.`,
       });
     } catch (err: any) {
       setAmazonStatus({
@@ -112,7 +112,7 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-black text-amber-950 text-base flex items-center gap-2">
-              <span className="text-xl">📦</span> Add / Import from Amazon
+              <span className="text-xl">⚡</span> Auto-Fill from Amazon
             </h2>
             <p className="mt-0.5 text-xs text-amber-900/80">
               Paste an Amazon URL or ASIN (e.g., <code>B08N5WRWNW</code>) to auto-fill title, image, price & affiliate link.
@@ -138,7 +138,7 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
             type="button"
             onClick={handleFetchAmazon}
             disabled={loadingAmazon}
-            className="btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 whitespace-nowrap transition-colors"
+            className="btn bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 whitespace-nowrap transition-colors cursor-pointer"
           >
             {loadingAmazon ? (
               <>
@@ -149,7 +149,7 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
                 Fetching from Amazon...
               </>
             ) : (
-              "⚡ Auto-Fetch Details"
+              "✨ Auto-Fill Fields"
             )}
           </button>
         </div>
@@ -229,7 +229,7 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
           )}
           <div className="text-xs text-slate-500">
             <p className="font-bold text-slate-700">Image Preview</p>
-            <p className="mt-0.5">Amazon, Flipkart & Cloudinary images are supported.</p>
+            <p className="mt-0.5">Amazon, Flipkart & direct image URLs are supported.</p>
           </div>
         </div>
 
@@ -260,7 +260,7 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
         </label>
 
         <label className="text-sm font-bold">
-          Price
+          Price (₹)
           <input
             className="field mt-1"
             name="price"
@@ -290,12 +290,13 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
 
         <label className="text-sm font-bold">
           Category
-          <select className="field mt-1" name="categoryId" required defaultValue={product?.categoryId}>
+          <select className="field mt-1" name="categoryId" required defaultValue={product?.categoryId || categories[0]?.id}>
             {categories.map((category) => (
               <option value={category.id} key={category.id}>
                 {category.name}
               </option>
             ))}
+            {!categories.length && <option value="default-cat">Electronics</option>}
           </select>
         </label>
 
@@ -352,15 +353,15 @@ export function ProductForm({ categories, product }: { categories: Category[]; p
       </div>
 
       <div className="flex flex-wrap gap-6 rounded-xl bg-stone-50 p-4 text-sm font-bold">
-        <label className="flex items-center gap-2">
-          <input name="isFeatured" type="checkbox" defaultChecked={product?.isFeatured} /> Featured product on homepage
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input name="isFeatured" type="checkbox" defaultChecked={product?.isFeatured !== false} /> Featured product on homepage
         </label>
-        <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input name="isActive" type="checkbox" defaultChecked={product ? product.isActive : true} /> Active and visible publicly
         </label>
       </div>
 
-      <button className="btn btn-alt w-full sm:w-auto" type="submit">
+      <button className="btn btn-alt w-full sm:w-auto cursor-pointer" type="submit">
         {editing ? "SAVE PRODUCT CHANGES" : "ADD PRODUCT TO LINKMARKET"}
       </button>
     </form>
