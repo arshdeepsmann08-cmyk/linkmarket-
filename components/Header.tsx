@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { auth, signOut } from "@/auth";
 
 export async function Header() {
@@ -11,18 +11,26 @@ export async function Header() {
         <Link href="/" className="text-xl font-black tracking-tight">
           Link<span className="text-mint">Market</span>
         </Link>
-        <nav className="hidden gap-5 text-sm font-semibold md:flex items-center">
+        <nav className="hidden gap-4 text-sm font-semibold md:flex items-center">
           <Link href="/">Home</Link>
           <Link href="/explore">Explore</Link>
           <Link href="/explore">Categories</Link>
           {user && <Link href="/dashboard">Dashboard</Link>}
           {user?.role === "ADMIN" && (
-            <Link
-              href="/admin"
-              className="text-amber-800 bg-amber-100 px-2.5 py-1 rounded-md font-bold text-xs border border-amber-300/60"
-            >
-              Admin Portal
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/admin/products/new"
+                className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg font-bold text-xs shadow-xs transition-colors flex items-center gap-1"
+              >
+                <span>➕</span> Add Product
+              </Link>
+              <Link
+                href="/admin"
+                className="text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold text-xs border border-amber-300 transition-colors"
+              >
+                Admin Portal
+              </Link>
+            </div>
           )}
         </nav>
         <div className="flex gap-2 text-sm font-bold items-center">
