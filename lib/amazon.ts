@@ -1,7 +1,5 @@
 ﻿import crypto from "crypto";
 
-const AMAZON_HOST = /(^|\.)amazon\.[a-z.]+$/i;
-const ASIN_REGEX = /\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})(?:[/?]|$)/i;
 const DIRECT_ASIN = /^[A-Z0-9]{10}$/i;
 
 export interface AmazonProductInfo {
@@ -35,20 +33,47 @@ export function parseAmazonProductUrl(value: string) {
     };
   }
 
-  try {
-    const url = new URL(trimmed);
-    if (!AMAZON_HOST.test(url.hostname)) return null;
-    const match = url.pathname.match(ASIN_REGEX);
-    if (!match || !DIRECT_ASIN.test(match[1])) return null;
-    const asin = match[1].toUpperCase();
+  // Match /dp/B0..., /gp/product/B0..., or asin=B0...
+  const dpMatch = trimmed.match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/|asin=)([A-Z0-9]{10})/i);
+  if (dpMatch) {
+    const asin = dpMatch[1].toUpperCase();
+    const hostMatch = trimmed.match(/https?:\/\/([^/]+)/i);
+    const host = hostMatch && hostMatch[1].includes("amazon") ? hostMatch[1] : "www.amazon.in";
     return {
       asin,
-      url: `https://${url.hostname}/dp/${asin}`,
-      host: url.hostname,
+      url: `https://${host}/dp/${asin}`,
+      host,
     };
-  } catch {
-    return null;
   }
+
+  // Generic 10-character token fallback
+  const generalMatch = trimmed.match(/\b([B0-9][A-Z0-9]{9})\b/i);
+  if (generalMatch) {
+    const asin = generalMatch[1].toUpperCase();
+    return {
+      asin,
+      url: `https://www.amazon.in/dp/${asin}`,
+      host: "www.amazon.in",
+    };
+  }
+
+  return null;
+}
+
+/** Async parser that handles amzn.to/amzn.in redirects */
+export async function parseAmazonProductUrlAsync(value: string) {
+  const syncParsed = parseAmazonProductUrl(value);
+  if (syncParsed) return syncParsed;
+
+  const trimmed = value.trim();
+  if (/^https?:\/\/(amzn\.(in|to|com)|bit\.ly|t\.co)\//i.test(trimmed)) {
+    try {
+      const res = await fetch(trimmed, { method: "HEAD", redirect: "follow" });
+      const finalUrl = res.url;
+      return parseAmazonProductUrl(finalUrl);
+    } catch {}
+  }
+  return null;
 }
 
 /** Builds an Amazon affiliate link tagged with the associate tag. */
@@ -59,48 +84,48 @@ export function buildAmazonAffiliateUrl(asin: string, host = "www.amazon.in", ta
 }
 
 /**
- * Fetches product metadata from Amazon URL or ASIN.
- * Uses Amazon PA-API 5.0 if AWS credentials are configured,
- * otherwise parses OpenGraph / JSON-LD / HTML meta tags server-side.
+ * Fetches Amazon product details via PA-API 5.0 (if configured) or fast metadata scraping.
  */
-export async function fetchAmazonProductData(inputUrl: string): Promise<AmazonProductInfo> {
-  const parsed = parseAmazonProductUrl(inputUrl);
+export async function fetchAmazonProductDetails(inputUrlOrAsin: string): Promise<AmazonProductInfo> {
+  const parsed = (await parseAmazonProductUrlAsync(inputUrlOrAsin)) || parseAmazonProductUrl(inputUrlOrAsin);
+
   if (!parsed) {
-    throw new Error("Invalid Amazon product URL or ASIN. Please check the URL.");
+    throw new Error(
+      "Could not find a valid Amazon product ASIN or link. Please paste a full Amazon link (e.g., https://www.amazon.in/dp/B08N5WRWNW) or a 10-character ASIN."
+    );
   }
 
   const { asin, url, host } = parsed;
   const affiliateTag = process.env.AMAZON_AFFILIATE_TAG || "linkmarket-21";
   const affiliateUrl = buildAmazonAffiliateUrl(asin, host, affiliateTag);
-  const isIndia = host.includes(".in");
-  const currency = isIndia ? "INR" : "USD";
-  const merchant = isIndia ? "Amazon India" : "Amazon";
+  const merchant = host.includes(".in") ? "Amazon India" : "Amazon";
+  const currency = host.includes(".in") ? "INR" : "USD";
 
-  const paAccessKey = process.env.AMAZON_PA_API_ACCESS_KEY;
-  const paSecretKey = process.env.AMAZON_PA_API_SECRET_KEY;
-
-  if (paAccessKey && paSecretKey) {
+  // Try PA-API 5.0 if keys exist
+  const accessKey = process.env.AMAZON_PA_API_KEY;
+  const secretKey = process.env.AMAZON_PA_API_SECRET;
+  if (accessKey && secretKey) {
     try {
-      const paData = await fetchPaApiData(asin, host, paAccessKey, paSecretKey, affiliateTag);
-      if (paData) return { ...paData, hasPaApi: true };
+      const paData = await fetchPaApiData(asin, host, accessKey, secretKey, affiliateTag);
+      if (paData) return paData;
     } catch (e) {
-      console.warn("PA-API lookup failed, falling back to metadata fetch:", e);
+      console.warn("PA-API lookup failed, falling back to scraper:", e);
     }
   }
 
-  // Fallback: Fetch product page and extract OpenGraph / JSON-LD metadata
+  // Fallback: fast HTML/Metadata extraction
   const scraped = await scrapeAmazonMetadata(url, asin);
 
   return {
     asin,
     title: scraped.title || `Amazon Product (${asin})`,
-    description: scraped.description || `Buy ${scraped.title || asin} on ${merchant} with fast shipping and best price.`,
+    description: scraped.description || `Buy ${scraped.title || asin} on ${merchant} with verified affiliate discount.`,
     imageUrl: scraped.imageUrl || `https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop`,
     productUrl: url,
     affiliateUrl,
     price: scraped.price || 999,
     currency: scraped.currency || currency,
-    brand: scraped.brand || "Generic",
+    brand: scraped.brand || "Amazon",
     merchant,
     rating: scraped.rating || 4.5,
     availability: scraped.availability || "In stock",
@@ -108,6 +133,8 @@ export async function fetchAmazonProductData(inputUrl: string): Promise<AmazonPr
     hasPaApi: false,
   };
 }
+
+export const fetchAmazonProductData = fetchAmazonProductDetails;
 
 interface ScrapedMetadata {
   title?: string;
@@ -136,7 +163,7 @@ async function scrapeAmazonMetadata(productUrl: string, asin: string): Promise<S
 
     const html = await res.text();
 
-    // 1. Try JSON-LD parsing
+    // 1. JSON-LD parsing
     const jsonLdMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
     if (jsonLdMatch) {
       try {
@@ -157,7 +184,7 @@ async function scrapeAmazonMetadata(productUrl: string, asin: string): Promise<S
       } catch {}
     }
 
-    // 2. OpenGraph & Meta tag parsing
+    // 2. OpenGraph & Meta tags
     const getMeta = (prop: string) => {
       const match =
         html.match(new RegExp(`<meta property="${prop}" content="([^"]+)"`, "i")) ||
@@ -169,7 +196,6 @@ async function scrapeAmazonMetadata(productUrl: string, asin: string): Promise<S
     const description = getMeta("og:description") || getMeta("description");
     const imageUrl = getMeta("og:image");
 
-    // Price extraction from common Amazon DOM elements
     let price: number | undefined;
     const priceMatch =
       html.match(/class="a-price-whole">([^<]+)<\/span>/i) ||
@@ -182,9 +208,10 @@ async function scrapeAmazonMetadata(productUrl: string, asin: string): Promise<S
       if (!isNaN(parsedPrice) && parsedPrice > 0) price = parsedPrice;
     }
 
-    // Brand extraction
     let brand: string | undefined;
-    const brandMatch = html.match(/id="bylineInfo"[^>]*>Visit the ([^<]+) Store<\/a>/i) || html.match(/id="bylineInfo"[^>]*>Brand: ([^<]+)<\/a>/i);
+    const brandMatch =
+      html.match(/id="bylineInfo"[^>]*>Visit the ([^<]+) Store<\/a>/i) ||
+      html.match(/id="bylineInfo"[^>]*>Brand: ([^<]+)<\/a>/i);
     if (brandMatch) brand = cleanString(brandMatch[1]);
 
     return {

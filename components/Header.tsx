@@ -16,26 +16,35 @@ export async function Header() {
           <Link href="/explore">Explore</Link>
           <Link href="/explore">Categories</Link>
           {user && <Link href="/dashboard">Dashboard</Link>}
-          {user?.role === "ADMIN" && (
+          {user && (
             <div className="flex items-center gap-2">
               <Link
                 href="/admin/products/new"
-                className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg font-bold text-xs shadow-xs transition-colors flex items-center gap-1"
+                className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg font-bold text-xs shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
               >
-                <span>➕</span> Add Product
+                <span>⚡</span> Add Product
               </Link>
-              <Link
-                href="/admin"
-                className="text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold text-xs border border-amber-300 transition-colors"
-              >
-                Admin Portal
-              </Link>
+              {user.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  className="text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold text-xs border border-amber-300 transition-colors"
+                >
+                  Admin Portal
+                </Link>
+              )}
             </div>
           )}
         </nav>
         <div className="flex gap-2 text-sm font-bold items-center">
           {user ? (
             <div className="flex items-center gap-3">
+              {/* Mobile Add Product button */}
+              <Link
+                href="/admin/products/new"
+                className="md:hidden bg-amber-600 text-white px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1"
+              >
+                <span>⚡</span> Add Product
+              </Link>
               <span className="text-xs text-stone-600 hidden sm:inline-block font-medium">
                 {user.email}
               </span>
