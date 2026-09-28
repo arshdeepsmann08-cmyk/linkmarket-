@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { currency } from "@/lib/utils";
 import { AmazonQuickImport } from "@/components/admin/AmazonQuickImport";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Products({
   searchParams,
 }: {
-  searchParams: Promise<{
+  searchParams?: Promise<{
     q?: string;
     category?: string;
     merchant?: string;
@@ -16,9 +16,16 @@ export default async function Products({
     sort?: string;
     created?: string;
     updated?: string;
+    deleted?: string;
   }>;
 }) {
-  const search = (await searchParams) || {};
+  let search: any = {};
+  try {
+    search = searchParams ? (await searchParams) : {};
+  } catch (e) {
+    search = {};
+  }
+
   const andConditions: any[] = [];
 
   if (search?.q) {
@@ -41,19 +48,41 @@ export default async function Products({
 
   let products: any[] = [];
   let categories: any[] = [];
-  let merchants: any[] = [];
+  let merchants: { merchant: string }[] = [];
 
   try {
-    const results = await Promise.all([
-      prisma.product.findMany({ where, include: { category: true, _count: { select: { clicks: true } } }, orderBy }),
-      prisma.category.findMany({ orderBy: { name: "asc" } }),
-      prisma.product.findMany({ distinct: ["merchant"], select: { merchant: true }, orderBy: { merchant: "asc" } }),
-    ]);
-    products = results[0] || [];
-    categories = results[1] || [];
-    merchants = results[2] || [];
+    products = await prisma.product.findMany({
+      where,
+      include: { category: true, _count: { select: { clicks: true } } },
+      orderBy,
+    });
   } catch (err) {
     console.error("Error fetching products in admin:", err);
+    products = [];
+  }
+
+  try {
+    categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
+  } catch (err) {
+    console.error("Error fetching categories in admin:", err);
+    categories = [];
+  }
+
+  try {
+    const rawMerchants = await prisma.product.findMany({
+      select: { merchant: true },
+      take: 100,
+    });
+    const uniqueMap = new Map();
+    for (const item of rawMerchants) {
+      if (item.merchant && !uniqueMap.has(item.merchant)) {
+        uniqueMap.set(item.merchant, { merchant: item.merchant });
+      }
+    }
+    merchants = Array.from(uniqueMap.values()).sort((a, b) => a.merchant.localeCompare(b.merchant));
+  } catch (err) {
+    console.error("Error fetching merchants in admin:", err);
+    merchants = [];
   }
 
   return (
@@ -63,10 +92,12 @@ export default async function Products({
         <AmazonQuickImport />
       </div>
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 mt-8">
         <div>
           <h2 className="text-2xl font-black">All Products ({products.length})</h2>
-          <p className="mt-1 muted">Deactivate products to preserve reporting and remove them from public listings.</p>
+          <p className="mt-1 muted">
+            Manage your store items, edit details, toggle visibility, or delete unwanted products.
+          </p>
         </div>
         <Link href="/admin/products/new" className="btn btn-alt">
           + Full Product Form
@@ -74,7 +105,15 @@ export default async function Products({
       </div>
 
       {(search?.created || search?.updated) && (
-        <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Product saved successfully.</p>
+        <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 font-bold border border-emerald-200">
+          ? Product saved successfully.
+        </p>
+      )}
+
+      {search?.deleted && (
+        <p className="mt-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 font-bold border border-amber-200">
+          ?? Product deleted successfully.
+        </p>
       )}
 
       <form className="card mt-5 grid gap-3 p-4 md:grid-cols-5">
@@ -105,7 +144,7 @@ export default async function Products({
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
           </select>
-          <button className="btn">Apply</button>
+          <button className="btn cursor-pointer">Apply</button>
         </div>
       </form>
 
@@ -126,40 +165,59 @@ export default async function Products({
           </thead>
           <tbody>
             {products.map((p) => (
-              <tr key={p.id} className="border-b last:border-0">
+              <tr key={p.id} className="border-b last:border-0 hover:bg-slate-50/50">
                 <td className="p-3">
                   <img
                     src={p.imageUrl}
                     alt=""
-                    className="h-10 w-10 rounded object-cover bg-slate-100"
+                    className="h-10 w-10 rounded object-cover bg-slate-100 border border-slate-200"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src =
                         "https://placehold.co/100x100/f1f5f9/64748b?text=Product";
                     }}
                   />
                 </td>
-                <td>
-                  <b>{p.title}</b>
-                  {p.brand && <span className="block muted">{p.brand}</span>}
+                <td className="max-w-[220px]">
+                  <b className="line-clamp-1">{p.title}</b>
+                  {p.brand && <span className="block muted text-xs">{p.brand}</span>}
                 </td>
-                <td>{p.merchant}</td>
-                <td>{currency(p.price, p.currency || "INR")}</td>
+                <td>{p.merchant || "Amazon"}</td>
+                <td className="font-bold">{currency(p.price, p.currency || "INR")}</td>
                 <td>{p.category?.name || "Uncategorized"}</td>
                 <td>
                   <span className={p.isActive ? "text-emerald-700 font-semibold" : "text-stone-500"}>
                     {p.isActive ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td>{p._count?.clicks || 0}</td>
-                <td>{new Date(p.createdAt).toLocaleDateString()}</td>
+                <td className="font-medium">{p._count?.clicks || 0}</td>
+                <td className="text-xs muted">
+                  {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "-"}
+                </td>
                 <td>
-                  <div className="flex gap-3">
-                    <Link className="font-bold hover:underline" href={`/admin/products/${p.id}/edit`}>
+                  <div className="flex items-center gap-3">
+                    <Link className="font-bold text-slate-800 hover:underline text-xs" href={`/admin/products/${p.id}/edit`}>
                       Edit
                     </Link>
-                    <form action={`/api/admin/products/${p.id}`} method="post">
+                    <form action={`/api/admin/products/${p.id}`} method="post" className="inline">
                       <input type="hidden" name="intent" value="toggle-active" />
-                      <button className="font-bold text-amber-800 cursor-pointer">{p.isActive ? "Deactivate" : "Reactivate"}</button>
+                      <button className="font-bold text-amber-800 hover:underline cursor-pointer text-xs">
+                        {p.isActive ? "Deactivate" : "Reactivate"}
+                      </button>
+                    </form>
+                    <form
+                      action={`/api/admin/products/${p.id}`}
+                      method="post"
+                      className="inline"
+                      onSubmit={(e) => {
+                        if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      <input type="hidden" name="intent" value="delete" />
+                      <button className="font-bold text-red-600 hover:text-red-800 hover:underline cursor-pointer text-xs">
+                        Delete
+                      </button>
                     </form>
                   </div>
                 </td>
@@ -167,8 +225,14 @@ export default async function Products({
             ))}
           </tbody>
         </table>
-        {!products.length && <p className="p-6 muted">No products found. Use the Amazon Importer above to add your first product!</p>}
+        {!products.length && (
+          <div className="p-8 text-center muted">
+            <p className="font-bold text-base text-slate-700">No products found</p>
+            <p className="mt-1 text-xs">Use the Amazon Importer above or click "+ Full Product Form" to add your first product!</p>
+          </div>
+        )}
       </div>
     </section>
   );
 }
+
