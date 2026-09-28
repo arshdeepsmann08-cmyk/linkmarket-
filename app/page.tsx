@@ -2,16 +2,27 @@
 import { prisma } from "@/lib/prisma";
 import { ProductCard } from "@/components/ProductCard";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
-  const [featured, categories] = await Promise.all([
-    prisma.product.findMany({
-      where: { isActive: true, isFeatured: true },
-      include: { category: true },
-      take: 4,
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.category.findMany({ take: 8, orderBy: { name: "asc" } }),
-  ]);
+  let featured: any[] = [];
+  let categories: any[] = [];
+
+  try {
+    const results = await Promise.all([
+      prisma.product.findMany({
+        where: { isActive: true, isFeatured: true },
+        include: { category: true },
+        take: 4,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.category.findMany({ take: 8, orderBy: { name: "asc" } }),
+    ]);
+    featured = results[0] || [];
+    categories = results[1] || [];
+  } catch (err) {
+    console.error("Error loading home page data:", err);
+  }
 
   return (
     <>
@@ -63,7 +74,7 @@ export default async function Home() {
           {featured.length ? (
             featured.map((product) => <ProductCard key={product.id} p={product} />)
           ) : (
-            <p className="muted">No featured products yet.</p>
+            <p className="muted">No featured products yet. Add your first product from the Dashboard!</p>
           )}
         </div>
       </section>
@@ -80,6 +91,9 @@ export default async function Home() {
               {category.name}
             </Link>
           ))}
+          {!categories.length && (
+            <p className="muted">Categories loading...</p>
+          )}
         </div>
       </section>
 
