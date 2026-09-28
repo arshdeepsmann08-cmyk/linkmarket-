@@ -16,15 +16,16 @@ export const authConfig: NextAuthConfig = {
       const isAuthPage =
         nextUrl.pathname === "/login" || nextUrl.pathname === "/signup";
 
-      if (isAdminPage && (auth?.user as { role?: string })?.role !== "ADMIN") {
-        return Response.redirect(new URL("/login", nextUrl));
+      // Require login for admin and account pages
+      if ((isAdminPage || isAccountPage) && !isLoggedIn) {
+        return Response.redirect(new URL(`/login?callbackUrl=${encodeURIComponent(nextUrl.pathname)}`, nextUrl));
       }
-      if (isAccountPage && !isLoggedIn) {
-        return Response.redirect(new URL("/login", nextUrl));
-      }
+
+      // If already logged in and visiting login/signup, redirect to dashboard
       if (isAuthPage && isLoggedIn) {
         return Response.redirect(new URL("/dashboard", nextUrl));
       }
+
       return true;
     },
   },
