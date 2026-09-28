@@ -2,14 +2,14 @@ export const currency = (
   value: number | string | { toString(): string } | null | undefined,
   currencyCode = "INR"
 ) => {
-  if (value === null || value === undefined) return "?0";
+  if (value === null || value === undefined) return "\u20B90";
   let num = 0;
   try {
     num = Number(value.toString());
   } catch {
     num = 0;
   }
-  if (Number.isNaN(num)) return "?0";
+  if (Number.isNaN(num)) return "\u20B90";
 
   const rawCode = (currencyCode || "INR").toString().trim().toUpperCase();
   const code = rawCode.replace(/[^A-Z]/g, "") || "INR";
@@ -31,8 +31,8 @@ export const currency = (
       minimumFractionDigits: isInteger ? 0 : 2,
       maximumFractionDigits: 2,
     }).format(num);
-  } catch (err) {
-    return `?${num.toLocaleString("en-IN")}`;
+  } catch {
+    return `\u20B9${num.toLocaleString("en-IN")}`;
   }
 };
 
@@ -42,4 +42,5 @@ export const slugify = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+
 

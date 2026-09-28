@@ -1,8 +1,6 @@
-"use client";
 import Link from "next/link";
 import { currency } from "@/lib/utils";
-
-const FALLBACK_IMAGE = "https://placehold.co/400x300/f1f5f9/64748b?text=No+Image";
+import { ProductImage } from "@/components/ProductImage";
 
 export function ProductCard({ p }: { p: any }) {
   // Treat USD as INR for India-sourced products (legacy DB default was USD)
@@ -14,16 +12,10 @@ export function ProductCard({ p }: { p: any }) {
   return (
     <article className="card overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
       <div>
-        <img
-          src={p.imageUrl || FALLBACK_IMAGE}
+        <ProductImage
+          src={p.imageUrl}
           alt={p.title}
           className="h-48 w-full object-cover bg-slate-100"
-          onError={(e) => {
-            const img = e.currentTarget;
-            if (img.src !== FALLBACK_IMAGE) {
-              img.src = FALLBACK_IMAGE;
-            }
-          }}
         />
         <div className="p-4">
           <div className="flex items-center justify-between">

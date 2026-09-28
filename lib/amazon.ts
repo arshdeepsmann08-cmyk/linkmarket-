@@ -1,4 +1,4 @@
-﻿import crypto from "crypto";
+import crypto from "crypto";
 
 const DIRECT_ASIN = /^[A-Z0-9]{10}$/i;
 
@@ -24,37 +24,53 @@ export function parseAmazonProductUrl(value: string) {
   if (!value) return null;
   const trimmed = value.trim();
 
+  // If it's a direct ASIN token (starts with B0 or alphanumeric 10 chars)
   if (DIRECT_ASIN.test(trimmed)) {
     const asin = trimmed.toUpperCase();
     return {
       asin,
       url: `https://www.amazon.in/dp/${asin}`,
-      host: "www.amazon.in",
     };
   }
 
-  // Match /dp/B0..., /gp/product/B0..., or asin=B0...
-  const dpMatch = trimmed.match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/|asin=)([A-Z0-9]{10})/i);
-  if (dpMatch) {
-    const asin = dpMatch[1].toUpperCase();
-    const hostMatch = trimmed.match(/https?:\/\/([^/]+)/i);
-    const host = hostMatch && hostMatch[1].includes("amazon") ? hostMatch[1] : "www.amazon.in";
-    return {
-      asin,
-      url: `https://${host}/dp/${asin}`,
-      host,
-    };
-  }
+  // If it's a URL, ensure it is from an Amazon domain
+  try {
+    const parsedUrl = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+    const host = parsedUrl.hostname.toLowerCase();
+    const isAmazon = host.includes("amazon.") || host.includes("amzn.");
+    if (!isAmazon) return null;
 
-  // Generic 10-character token fallback
-  const generalMatch = trimmed.match(/\b([B0-9][A-Z0-9]{9})\b/i);
-  if (generalMatch) {
-    const asin = generalMatch[1].toUpperCase();
-    return {
-      asin,
-      url: `https://www.amazon.in/dp/${asin}`,
-      host: "www.amazon.in",
-    };
+    // Match /dp/B0..., /gp/product/B0..., /gp/aw/d/B0...
+    const dpMatch = parsedUrl.pathname.match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/)([A-Z0-9]{10})/i);
+    if (dpMatch) {
+      const asin = dpMatch[1].toUpperCase();
+      return {
+        asin,
+        url: trimmed,
+      };
+    }
+
+    // Match query param asin=B0...
+    const asinParam = parsedUrl.searchParams.get("asin");
+    if (asinParam && DIRECT_ASIN.test(asinParam)) {
+      const asin = asinParam.toUpperCase();
+      return {
+        asin,
+        url: trimmed,
+      };
+    }
+  } catch {
+    // If not a standard URL, try token match if contains amazon
+    if (/amazon/i.test(trimmed)) {
+      const match = trimmed.match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/)([A-Z0-9]{10})/i);
+      if (match) {
+        const asin = match[1].toUpperCase();
+        return {
+          asin,
+          url: `https://www.amazon.in/dp/${asin}`,
+        };
+      }
+    }
   }
 
   return null;
@@ -95,7 +111,12 @@ export async function fetchAmazonProductDetails(inputUrlOrAsin: string): Promise
     );
   }
 
-  const { asin, url, host } = parsed;
+  const { asin, url } = parsed;
+  let host = "www.amazon.in";
+  try {
+    const urlObj = new URL(url.startsWith("http") ? url : `https://${url}`);
+    if (urlObj.hostname.includes("amazon")) host = urlObj.hostname;
+  } catch {}
   const affiliateTag = process.env.AMAZON_AFFILIATE_TAG || "linkmarket-21";
   const affiliateUrl = buildAmazonAffiliateUrl(asin, host, affiliateTag);
   const merchant = host.includes(".in") ? "Amazon India" : "Amazon";

@@ -108,13 +108,13 @@ export default async function Products({
 
       {(search?.created || search?.updated) && (
         <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 font-bold border border-emerald-200">
-          ? Product saved successfully.
+          ✓ Product saved successfully.
         </p>
       )}
 
       {search?.deleted && (
         <p className="mt-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 font-bold border border-amber-200">
-          ?? Product deleted successfully.
+          🗑️ Product deleted successfully.
         </p>
       )}
 
@@ -167,11 +167,11 @@ export default async function Products({
           </thead>
           <tbody>
             {products.map((p) => {
-              let formattedPrice = "?0";
+              let formattedPrice = "₹0";
               try {
                 formattedPrice = currency(p.price, p.currency || "INR");
               } catch {
-                formattedPrice = "?0";
+                formattedPrice = "₹0";
               }
 
               let createdDateStr = "-";

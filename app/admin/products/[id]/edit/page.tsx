@@ -1,4 +1,4 @@
-﻿import { notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ProductForm } from "@/components/admin/ProductForm";
 
@@ -22,8 +22,28 @@ export default async function EditProduct({
       prisma.product.findUnique({ where: { id } }),
       prisma.category.findMany({ orderBy: { name: "asc" } }),
     ]);
-    product = p;
-    categories = cats;
+    if (p) {
+      product = {
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        imageUrl: p.imageUrl,
+        productUrl: p.productUrl,
+        affiliateUrl: p.affiliateUrl,
+        price: p.price ? p.price.toString() : "",
+        currency: p.currency,
+        categoryId: p.categoryId,
+        brand: p.brand || "",
+        rating: p.rating,
+        availability: p.availability,
+        merchant: p.merchant,
+        isFeatured: p.isFeatured,
+        isActive: p.isActive,
+        source: p.source,
+        sourceProductId: p.sourceProductId || "",
+      };
+    }
+    categories = (cats || []).map((c) => ({ id: c.id, name: c.name }));
   } catch (err) {
     console.error("Error loading product for edit:", err);
   }
