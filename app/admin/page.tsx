@@ -1,132 +1,15 @@
-import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth/rbac";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { currency } from "@/lib/utils";
-import { DeleteProductButton } from "@/components/DeleteProductButton";
 
-export default async function Admin() {
-  // RBAC: redirects to /login if not ADMIN
-  await requireAdmin();
-
-  const [products, users, clicks, commissions, categories] = await Promise.all([
-    prisma.product.findMany({ include: { category: true }, take: 12 }),
-    prisma.user.count(),
-    prisma.click.count(),
-    prisma.commission.findMany({
-      include: { product: true },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    }),
-    prisma.category.findMany(),
+export default async function AdminDashboard() {
+  const recentlyAddedSince = new Date();
+  recentlyAddedSince.setDate(recentlyAddedSince.getDate() - 30);
+  const [totalProducts, activeProducts, totalClicks, recentlyAdded, recentProducts] = await Promise.all([
+    prisma.product.count(), prisma.product.count({ where: { isActive: true } }), prisma.click.count(),
+    prisma.product.count({ where: { createdAt: { gte: recentlyAddedSince } } }),
+    prisma.product.findMany({ take: 5, orderBy: { createdAt: "desc" }, include: { category: true, _count: { select: { clicks: true } } } }),
   ]);
-
-  return (
-    <div className="shell py-10">
-      <p className="font-bold text-mint">ADMIN CONSOLE</p>
-      <h1 className="text-4xl font-black">Marketplace operations</h1>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-4">
-        <Box label="Products" value={products.length} />
-        <Box label="Users" value={users} />
-        <Box label="Clicks" value={clicks} />
-        <Box label="Commissions" value={commissions.length} />
-      </div>
-
-      <div className="mt-8 grid gap-7 lg:grid-cols-2">
-        <form action="/api/admin/products" method="post" className="card space-y-3 p-5">
-          <h2 className="text-xl font-black">Add product</h2>
-          <input className="field" required name="name" placeholder="Product name" />
-          <textarea className="field" required name="description" placeholder="Description" />
-          <div className="grid grid-cols-2 gap-3">
-            <input className="field" required name="price" type="number" step=".01" placeholder="Price" />
-            <input className="field" required name="rating" type="number" step=".1" max="5" placeholder="Rating" />
-          </div>
-          <input className="field" required name="imageUrl" placeholder="https:// image URL" />
-          <select className="field" name="categoryId">
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input className="field" required name="merchantName" placeholder="Merchant name" />
-          <input className="field" required name="affiliateUrl" placeholder="https:// affiliate URL" />
-          <button className="btn">Add product</button>
-        </form>
-
-        <form action="/api/admin/commissions" method="post" className="card space-y-3 p-5">
-          <h2 className="text-xl font-black">Manual commission</h2>
-          <p className="text-sm muted">
-            Use this only after a real affiliate network reports a conversion.
-          </p>
-          <select className="field" name="productId">
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <input className="field" required name="orderReference" placeholder="Network order reference" />
-          <input className="field" required name="amount" type="number" step=".01" placeholder="Commission amount" />
-          <select className="field" name="status">
-            <option>PENDING</option>
-            <option>CONFIRMED</option>
-            <option>REJECTED</option>
-            <option>PAID</option>
-          </select>
-          <button className="btn">Record commission</button>
-        </form>
-      </div>
-
-      <section className="card mt-7 overflow-x-auto p-5">
-        <h2 className="text-xl font-black">Products</h2>
-        <table className="mt-4 w-full text-left text-sm">
-          <thead>
-            <tr className="text-slate-500">
-              <th>Name</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-t">
-                <td className="py-3 font-bold">{p.name}</td>
-                <td>{p.category.name}</td>
-                <td>{currency(p.price)}</td>
-                <td>
-                  <form action={`/api/admin/products/${p.id}`} method="post">
-                    <DeleteProductButton />
-                  </form>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="card mt-7 p-5">
-        <h2 className="text-xl font-black">Recent commissions</h2>
-        {commissions.length ? (
-          commissions.map((c) => (
-            <p className="border-t py-3 text-sm" key={c.id}>
-              {c.product.name} · {currency(c.amount)} · <b>{c.status}</b>
-            </p>
-          ))
-        ) : (
-          <p className="mt-3 muted">No commissions recorded.</p>
-        )}
-      </section>
-    </div>
-  );
+  return <section><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Total Products" value={totalProducts} /><Metric label="Active Products" value={activeProducts} /><Metric label="Total Clicks" value={totalClicks} /><Metric label="Products Added Recently" value={recentlyAdded} /></div><section className="card mt-7 p-5"><div className="flex items-center justify-between"><div><h2 className="text-xl font-black">Recent products</h2><p className="mt-1 text-sm muted">Product clicks measure referrals, not purchases or commission.</p></div><Link href="/admin/products/new" className="btn btn-alt">Add product</Link></div><div className="mt-5 space-y-3">{recentProducts.map((product) => <div key={product.id} className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm"><div><b>{product.title}</b><span className="ml-2 muted">{product.category.name} · {product.merchant}</span></div><div className="flex items-center gap-4"><span>{product._count.clicks} clicks</span><span className={product.isActive ? "text-emerald-700" : "text-stone-500"}>{product.isActive ? "Active" : "Inactive"}</span><Link href={`/admin/products/${product.id}/edit`} className="font-bold">Edit</Link></div></div>)}{!recentProducts.length && <p className="muted">No products yet. Add the first one from the product form.</p>}</div></section></section>;
 }
 
-function Box({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="card p-4">
-      <p className="text-sm muted">{label}</p>
-      <p className="text-3xl font-black">{value}</p>
-    </div>
-  );
-}
+function Metric({ label, value }: { label: string; value: number }) { return <div className="card p-5"><p className="text-sm muted">{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div>; }

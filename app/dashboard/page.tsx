@@ -38,7 +38,7 @@ export default async function Dashboard() {
         {clicks.length ? (
           clicks.map((c) => (
             <p key={c.id} className="border-t py-3 text-sm">
-              Clicked <b>{c.product.name}</b> · {c.createdAt.toLocaleDateString()}
+              Clicked <b>{c.product.title}</b> · {c.createdAt.toLocaleDateString()}
             </p>
           ))
         ) : (

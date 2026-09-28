@@ -1,1 +1,14 @@
-import { NextRequest, NextResponse } from "next/server"; import { requireAdmin } from "@/lib/auth"; import { prisma } from "@/lib/prisma"; import { commissionSchema } from "@/lib/validation"; export async function POST(req:NextRequest){try{await requireAdmin();const c=commissionSchema.parse(Object.fromEntries(await req.formData()));await prisma.commission.create({data:c});return NextResponse.redirect(new URL("/admin",req.url))}catch{return NextResponse.redirect(new URL("/admin?error=commission",req.url))}}
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminUser } from "@/lib/auth/rbac";
+import { prisma } from "@/lib/prisma";
+import { commissionSchema } from "@/lib/validation";
+
+export async function POST(req: NextRequest) {
+  if (!(await getAdminUser())) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  try {
+    await prisma.commission.create({ data: commissionSchema.parse(Object.fromEntries(await req.formData())) });
+    return NextResponse.redirect(new URL("/admin?commission=recorded", req.url), 303);
+  } catch {
+    return NextResponse.redirect(new URL("/admin?error=commission", req.url), 303);
+  }
+}

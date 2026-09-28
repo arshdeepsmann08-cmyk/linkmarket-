@@ -1,7 +1,8 @@
-import type { NextAuthConfig } from "next-auth";
+﻿import type { NextAuthConfig } from "next-auth";
 
-// Lightweight auth config used by Edge middleware (no Node.js-only imports like bcryptjs/prisma)
 export const authConfig: NextAuthConfig = {
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "2cc705d0cc8266453b4a7d9fd66f29ee7a2d524303f2ad721f484cba52f07c81",
+  session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
   },
@@ -15,7 +16,7 @@ export const authConfig: NextAuthConfig = {
       const isAuthPage =
         nextUrl.pathname === "/login" || nextUrl.pathname === "/signup";
 
-      if (isAdminPage && auth?.user?.role !== "ADMIN") {
+      if (isAdminPage && (auth?.user as { role?: string })?.role !== "ADMIN") {
         return Response.redirect(new URL("/login", nextUrl));
       }
       if (isAccountPage && !isLoggedIn) {
@@ -27,5 +28,5 @@ export const authConfig: NextAuthConfig = {
       return true;
     },
   },
-  providers: [], // Providers are added in auth.ts (Node.js only)
+  providers: [],
 };

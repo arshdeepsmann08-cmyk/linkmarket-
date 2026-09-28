@@ -1,4 +1,125 @@
-import { PrismaClient, Role } from "@prisma/client"; import bcrypt from "bcryptjs"; import { slugify } from "../lib/utils"; const prisma=new PrismaClient();
-const products=[
-["Orbit Wireless Headphones","Electronics",89,"Immersive over-ear audio with all-day battery.","https://images.unsplash.com/photo-1505740420928-5e560c06d30e"],["Halo Smart Lamp","Home",49,"Warm, dimmable light for a calmer desk.","https://images.unsplash.com/photo-1507473885765-e6ed057f782c"],["TrailFlex Trainers","Fitness",74,"Lightweight everyday running shoes.","https://images.unsplash.com/photo-1542291026-7eec264c27ff"],["The Focus Habit","Books",19,"A practical guide to building better routines.","https://images.unsplash.com/photo-1543002588-bfa74002ed7e"],["Nova Mechanical Keyboard","Gaming",129,"Tactile keys and subtle RGB lighting.","https://images.unsplash.com/photo-1587829741301-dc798b83add3"],["Canvas Weekender","Fashion",68,"A roomy, durable travel essential.","https://images.unsplash.com/photo-1553062407-98eeb64c6a62"],["Pulse Fitness Watch","Fitness",149,"Workout insights and sleep tracking.","https://images.unsplash.com/photo-1523275335684-37898b6baf30"],["BrewCraft Pour Over","Home",36,"A precise ritual for richer coffee.","https://images.unsplash.com/photo-1495474472287-4d71bcdd2085"],["Pocket Gaming Controller","Gaming",59,"Console-style control for mobile play.","https://images.unsplash.com/photo-1511512578047-dfb367046420"],["Cloud Mini Speaker","Electronics",45,"Small speaker, surprisingly full sound.","https://images.unsplash.com/photo-1545454675-3531b543be5d"],["Linen Everyday Shirt","Fashion",42,"Breathable, relaxed, and easy to layer.","https://images.unsplash.com/photo-1603252109303-2751441dd157"],["Deep Work Desk Pad","Home",28,"A soft, spacious surface for focused work.","https://images.unsplash.com/photo-1497366754035-f200968a6e72"],["The Creative Code","Books",24,"Stories and tools for curious makers.","https://images.unsplash.com/photo-1516979187457-637abb4f9353"],["Recovery Foam Roller","Fitness",31,"Target tired muscles after training.","https://images.unsplash.com/photo-1517836357463-d25dfeac3438"],["Arcade Desk Mat","Gaming",22,"A vivid, extra-large desk companion.","https://images.unsplash.com/photo-1550745165-9bc0b252726f"]];
-async function main(){for(const c of [...new Set(products.map(p=>p[1] as string))])await prisma.category.upsert({where:{slug:slugify(c)},update:{},create:{name:c,slug:slugify(c)}});const cats=await prisma.category.findMany();for(const [name,cat,price,description,imageUrl] of products){const categoryId=cats.find(c=>c.name===cat)!.id;await prisma.product.upsert({where:{slug:slugify(name as string)},update:{},create:{name:name as string,slug:slugify(name as string),description:description as string,price:price as number,imageUrl:`${imageUrl}?auto=format&fit=crop&w=900&q=80`,categoryId,rating:4.2,affiliateUrl:"https://example.com/demo-affiliate-link",merchantName:"Demo Merchant"}})}await prisma.user.upsert({where:{email:"admin@linkmarket.demo"},update:{},create:{name:"Demo Admin",email:"admin@linkmarket.demo",passwordHash:await bcrypt.hash("ChangeMe123!",12),role:Role.ADMIN}})} main().finally(()=>prisma.$disconnect());
+﻿import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import fs from "fs";
+import path from "path";
+import { slugify } from "../lib/utils";
+
+// Load .env if not loaded
+if (!process.env.DATABASE_URL) {
+  const envPath = path.join(__dirname, "..", ".env");
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf8").replace(/^\uFEFF/, "");
+    for (const line of envContent.split(/\r?\n/)) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        let val = match[2] || "";
+        if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+        if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
+        process.env[match[1]] = val;
+      }
+    }
+  }
+}
+
+const prisma = new PrismaClient();
+
+const amazonTag = process.env.AMAZON_AFFILIATE_TAG || "linkmarket-21";
+const flipkartId = process.env.FLIPKART_AFFILIATE_ID || "linkmarket";
+
+async function main() {
+  const jsonPath = path.join(__dirname, "products.json");
+  const rawData = fs.readFileSync(jsonPath, "utf8").replace(/^\uFEFF/, "");
+  const products = JSON.parse(rawData);
+
+  console.log("Seeding categories...");
+  const categories = [...new Set(products.map((p: any) => p.category))];
+  for (const cat of categories) {
+    const slug = slugify(cat as string);
+    await prisma.category.upsert({
+      where: { slug },
+      update: { name: cat as string },
+      create: { name: cat as string, slug },
+    });
+  }
+
+  const allCategories = await prisma.category.findMany();
+
+  console.log(`Seeding ${products.length} products...`);
+  for (const p of products) {
+    const category = allCategories.find((c) => c.name === p.category);
+    if (!category) continue;
+
+    const slug = slugify(p.title);
+    let affiliateUrl = p.affiliateUrl;
+
+    if (p.source === "AMAZON" && !affiliateUrl.includes("tag=")) {
+      affiliateUrl = `${affiliateUrl}?tag=${amazonTag}`;
+    } else if (p.source === "FLIPKART" && !affiliateUrl.includes("affid=")) {
+      affiliateUrl = `${affiliateUrl}?affid=${flipkartId}`;
+    }
+
+    await prisma.product.upsert({
+      where: { slug },
+      update: {
+        title: p.title,
+        description: p.description,
+        price: p.price,
+        currency: p.currency || "INR",
+        imageUrl: p.imageUrl,
+        productUrl: p.productUrl,
+        affiliateUrl,
+        categoryId: category.id,
+        brand: p.brand,
+        rating: p.rating,
+        availability: p.availability || "In stock",
+        merchant: p.merchant,
+        source: p.source || "MANUAL",
+        sourceProductId: p.sourceProductId,
+        isFeatured: Boolean(p.isFeatured),
+        isActive: true,
+      },
+      create: {
+        title: p.title,
+        slug,
+        description: p.description,
+        price: p.price,
+        currency: p.currency || "INR",
+        imageUrl: p.imageUrl,
+        productUrl: p.productUrl,
+        affiliateUrl,
+        categoryId: category.id,
+        brand: p.brand,
+        rating: p.rating,
+        availability: p.availability || "In stock",
+        merchant: p.merchant,
+        source: p.source || "MANUAL",
+        sourceProductId: p.sourceProductId,
+        isFeatured: Boolean(p.isFeatured),
+        isActive: true,
+      },
+    });
+  }
+
+  console.log("Seeding demo admin account...");
+  await prisma.user.upsert({
+    where: { email: "admin@linkmarket.demo" },
+    update: {},
+    create: {
+      name: "Demo Admin",
+      email: "admin@linkmarket.demo",
+      passwordHash: await bcrypt.hash("ChangeMe123!", 12),
+      role: Role.ADMIN,
+    },
+  });
+
+  console.log("Successfully seeded database with real Amazon & Flipkart products!");
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

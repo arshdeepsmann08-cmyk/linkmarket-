@@ -14,7 +14,11 @@ LinkMarket is a Next.js affiliate-product marketplace MVP. It tracks outbound cl
 Buttons use `/go/[productId]` (also available at `/api/click/[productId]`), validate the stored HTTP(S) URL, record privacy-minimized click metadata, then redirect. A `?ref=userId` associates a referral. Seed URLs intentionally point to `example.com` and are **DEMO URLs**.
 
 ## Admin and commissions
-Admin-only routes enforce the `ADMIN` role server-side. Use the admin console to add products and manually record commissions. This MVP intentionally has no fake conversion detection: a production affiliate-network webhook should validate signed network events and create/update commissions there.
+Admin-only routes enforce the `ADMIN` role server-side. The first registered user is assigned `ADMIN`; to promote an existing account, run `npm run admin:grant -- you@example.com` with `DATABASE_URL` configured. Use `/admin/products/new` to add products, `/admin/products` to edit, search, filter, deactivate, and reactivate them, and `/admin/analytics` to view outbound clicks.
+
+Products are soft-disabled with `isActive`, so deactivation removes them from public discovery without deleting reporting data. The product-management migration adds product URL, currency, brand, availability, featured/active flags, source metadata, and privacy-minimized click fields. Run `npx prisma migrate deploy` in the production environment before deploying this version.
+
+Amazon URL support only extracts an ASIN from a pasted URL; it never scrapes Amazon. Connect an approved Amazon Product Advertising API integration and credentials server-side before claiming product import is available. Amazon products display: “As an Amazon Associate I earn from qualifying purchases.”
 
 ## Deployment
 Provision PostgreSQL, set the environment variables in your host, run `prisma migrate deploy` and `npm run db:seed` once, then `npm run build` and `npm run start`.
