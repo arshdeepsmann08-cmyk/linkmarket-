@@ -1,19 +1,154 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { currency } from "@/lib/utils";
+import { AmazonQuickImport } from "@/components/admin/AmazonQuickImport";
 
-export default async function Products({ searchParams }: { searchParams: Promise<{ q?: string; category?: string; merchant?: string; status?: string; sort?: string; created?: string; updated?: string }> }) {
+export const dynamic = "force-dynamic";
+
+export default async function Products({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    q?: string;
+    category?: string;
+    merchant?: string;
+    status?: string;
+    sort?: string;
+    created?: string;
+    updated?: string;
+  }>;
+}) {
   const search = await searchParams;
   const where: any = { AND: [] };
-  if (search.q) where.AND.push({ OR: [{ title: { contains: search.q, mode: "insensitive" } }, { brand: { contains: search.q, mode: "insensitive" } }, { merchant: { contains: search.q, mode: "insensitive" } }] });
+
+  if (search.q) {
+    where.AND.push({
+      OR: [
+        { title: { contains: search.q, mode: "insensitive" } },
+        { brand: { contains: search.q, mode: "insensitive" } },
+        { merchant: { contains: search.q, mode: "insensitive" } },
+      ],
+    });
+  }
+
   if (search.category) where.AND.push({ categoryId: search.category });
   if (search.merchant) where.AND.push({ merchant: search.merchant });
   if (search.status === "active") where.AND.push({ isActive: true });
   if (search.status === "inactive") where.AND.push({ isActive: false });
+
   const orderBy = search.sort === "oldest" ? { createdAt: "asc" as const } : { createdAt: "desc" as const };
+
   const [products, categories, merchants] = await Promise.all([
     prisma.product.findMany({ where, include: { category: true, _count: { select: { clicks: true } } }, orderBy }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }), prisma.product.findMany({ distinct: ["merchant"], select: { merchant: true }, orderBy: { merchant: "asc" } }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.product.findMany({ distinct: ["merchant"], select: { merchant: true }, orderBy: { merchant: "asc" } }),
   ]);
-  return <section><div className="mt-6 flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-2xl font-black">Products</h2><p className="mt-1 muted">Deactivate products to preserve reporting and remove them from public listings.</p></div><Link href="/admin/products/new" className="btn btn-alt">Add product</Link></div>{(search.created || search.updated) && <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Product saved successfully.</p>}<form className="card mt-5 grid gap-3 p-4 md:grid-cols-5"><input className="field" name="q" placeholder="Search name, brand, merchant" defaultValue={search.q} /><select className="field" name="category" defaultValue={search.category}><option value="">All categories</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select className="field" name="merchant" defaultValue={search.merchant}><option value="">All merchants</option>{merchants.map(m => <option key={m.merchant} value={m.merchant}>{m.merchant}</option>)}</select><select className="field" name="status" defaultValue={search.status}><option value="">Any status</option><option value="active">Active</option><option value="inactive">Inactive</option></select><div className="flex gap-2"><select className="field" name="sort" defaultValue={search.sort}><option value="newest">Newest</option><option value="oldest">Oldest</option></select><button className="btn">Apply</button></div></form><div className="card mt-5 overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-b bg-stone-50 text-slate-500"><tr><th className="p-3">Image</th><th>Product</th><th>Merchant</th><th>Price</th><th>Category</th><th>Status</th><th>Clicks</th><th>Created</th><th>Actions</th></tr></thead><tbody>{products.map(p => <tr key={p.id} className="border-b last:border-0"><td className="p-3"><img src={p.imageUrl} alt="" className="h-10 w-10 rounded object-cover" /></td><td><b>{p.title}</b>{p.brand && <span className="block muted">{p.brand}</span>}</td><td>{p.merchant}</td><td>{currency(p.price, p.currency)}</td><td>{p.category.name}</td><td><span className={p.isActive ? "text-emerald-700" : "text-stone-500"}>{p.isActive ? "Active" : "Inactive"}</span></td><td>{p._count.clicks}</td><td>{p.createdAt.toLocaleDateString()}</td><td><div className="flex gap-3"><Link className="font-bold" href={`/admin/products/${p.id}/edit`}>Edit</Link><form action={`/api/admin/products/${p.id}`} method="post"><input type="hidden" name="intent" value="toggle-active" /><button className="font-bold text-amber-800">{p.isActive ? "Deactivate" : "Reactivate"}</button></form></div></td></tr>)}</tbody></table>{!products.length && <p className="p-6 muted">No products match these filters.</p>}</div></section>;
+
+  return (
+    <section>
+      {/* Amazon Quick Import Box right at top of Products page */}
+      <div className="mt-6">
+        <AmazonQuickImport />
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black">All Products</h2>
+          <p className="mt-1 muted">Deactivate products to preserve reporting and remove them from public listings.</p>
+        </div>
+        <Link href="/admin/products/new" className="btn btn-alt">
+          + Full Product Form
+        </Link>
+      </div>
+
+      {(search.created || search.updated) && (
+        <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Product saved successfully.</p>
+      )}
+
+      <form className="card mt-5 grid gap-3 p-4 md:grid-cols-5">
+        <input className="field" name="q" placeholder="Search name, brand, merchant" defaultValue={search.q} />
+        <select className="field" name="category" defaultValue={search.category}>
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select className="field" name="merchant" defaultValue={search.merchant}>
+          <option value="">All merchants</option>
+          {merchants.map((m) => (
+            <option key={m.merchant} value={m.merchant}>
+              {m.merchant}
+            </option>
+          ))}
+        </select>
+        <select className="field" name="status" defaultValue={search.status}>
+          <option value="">Any status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <div className="flex gap-2">
+          <select className="field" name="sort" defaultValue={search.sort}>
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+          </select>
+          <button className="btn">Apply</button>
+        </div>
+      </form>
+
+      <div className="card mt-5 overflow-x-auto">
+        <table className="w-full min-w-[850px] text-left text-sm">
+          <thead className="border-b bg-stone-50 text-slate-500">
+            <tr>
+              <th className="p-3">Image</th>
+              <th>Product</th>
+              <th>Merchant</th>
+              <th>Price</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Clicks</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p.id} className="border-b last:border-0">
+                <td className="p-3">
+                  <img src={p.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                </td>
+                <td>
+                  <b>{p.title}</b>
+                  {p.brand && <span className="block muted">{p.brand}</span>}
+                </td>
+                <td>{p.merchant}</td>
+                <td>{currency(p.price, p.currency)}</td>
+                <td>{p.category.name}</td>
+                <td>
+                  <span className={p.isActive ? "text-emerald-700" : "text-stone-500"}>
+                    {p.isActive ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td>{p._count.clicks}</td>
+                <td>{p.createdAt.toLocaleDateString()}</td>
+                <td>
+                  <div className="flex gap-3">
+                    <Link className="font-bold" href={`/admin/products/${p.id}/edit`}>
+                      Edit
+                    </Link>
+                    <form action={`/api/admin/products/${p.id}`} method="post">
+                      <input type="hidden" name="intent" value="toggle-active" />
+                      <button className="font-bold text-amber-800">{p.isActive ? "Deactivate" : "Reactivate"}</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!products.length && <p className="p-6 muted">No products match these filters.</p>}
+      </div>
+    </section>
+  );
 }
