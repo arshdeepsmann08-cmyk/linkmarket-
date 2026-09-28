@@ -1,1 +1,50 @@
-import Link from "next/link"; import { currency } from "@/lib/utils"; export function ProductCard({p}:{p:any}){return <article className="card overflow-hidden"><img src={p.imageUrl} alt="" className="h-44 w-full object-cover"/><div className="p-4"><p className="text-xs font-bold uppercase tracking-wider text-mint">{p.category.name}</p><h3 className="mt-1 font-bold">{p.name}</h3><p className="mt-2 line-clamp-2 text-sm text-slate-600">{p.description}</p><div className="mt-4 flex items-center justify-between"><span className="font-black">{currency(p.price)}</span><span className="text-sm">★ {p.rating.toFixed(1)}</span></div><Link href={`/products/${p.slug}`} className="btn mt-4 w-full text-sm">View product</Link></div></article>}
+"use client";
+import Link from "next/link";
+import { currency } from "@/lib/utils";
+
+const FALLBACK_IMAGE = "https://placehold.co/400x300/f1f5f9/64748b?text=No+Image";
+
+export function ProductCard({ p }: { p: any }) {
+  // Treat USD as INR for India-sourced products (legacy DB default was USD)
+  const currencyCode =
+    !p.currency || p.currency === "USD"
+      ? "INR"
+      : p.currency;
+
+  return (
+    <article className="card overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
+      <div>
+        <img
+          src={p.imageUrl || FALLBACK_IMAGE}
+          alt={p.title}
+          className="h-48 w-full object-cover bg-slate-100"
+          onError={(e) => {
+            const img = e.currentTarget;
+            if (img.src !== FALLBACK_IMAGE) {
+              img.src = FALLBACK_IMAGE;
+            }
+          }}
+        />
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-mint">{p.category?.name || "Product"}</span>
+            <span className="text-xs font-semibold text-slate-500">{p.merchant}</span>
+          </div>
+          <h3 className="mt-1 font-bold text-base line-clamp-2 text-slate-900">{p.title}</h3>
+          {p.brand && <p className="mt-1 text-xs text-slate-500">{p.brand}</p>}
+          <p className="mt-2 line-clamp-2 text-xs text-slate-600 leading-relaxed">{p.description}</p>
+        </div>
+      </div>
+      <div className="p-4 pt-0">
+        <div className="mt-2 flex items-center justify-between border-t border-stone-100 pt-3">
+          <span className="font-black text-lg text-slate-950">{currency(p.price, currencyCode)}</span>
+          <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded">? {p.rating ? Number(p.rating).toFixed(1) : "4.5"}</span>
+        </div>
+        <Link href={`/products/${p.slug}`} className="btn mt-3 w-full text-xs font-bold py-2.5 text-center">
+          View details &amp; buy
+        </Link>
+      </div>
+    </article>
+  );
+}
+

@@ -80,28 +80,44 @@ model PasswordResetToken {
 }
 
 model Category {
-  id       String    @id @default(cuid())
-  name     String    @unique
-  slug     String    @unique
-  products Product[]
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
 }
 
 model Product {
-  id           String       @id @default(cuid())
-  name         String
-  slug         String       @unique
-  description  String
-  price        Decimal      @db.Decimal(10, 2)
-  imageUrl     String
-  categoryId   String
-  category     Category     @relation(fields: [categoryId], references: [id])
-  rating       Float        @default(0)
-  affiliateUrl String
-  merchantName String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  clicks       Click[]
-  commissions  Commission[]
+  id              String       @id @default(cuid())
+  // Maps to the existing column so current product data remains intact.
+  title           String       @map("name")
+  slug            String       @unique
+  description     String
+  imageUrl        String
+  productUrl      String       @default("")
+  affiliateUrl    String
+  price           Decimal      @db.Decimal(10, 2)
+  currency        String       @default("INR") @db.VarChar(3)
+  categoryId      String
+  category        Category     @relation(fields: [categoryId], references: [id])
+  brand           String?
+  rating          Float        @default(0)
+  availability    String       @default("In stock")
+  // Maps to the existing column so current product data remains intact.
+  merchant        String       @map("merchantName")
+  isFeatured      Boolean      @default(false)
+  isActive        Boolean      @default(true)
+  source          String       @default("MANUAL")
+  sourceProductId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  clicks          Click[]
+  commissions     Commission[]
+
+  @@index([isActive, createdAt])
+  @@index([categoryId, isActive])
+  @@index([merchant])
 }
 
 model Click {
@@ -112,9 +128,15 @@ model Click {
   user           User?    @relation(fields: [userId], references: [id])
   referrerUserId String?
   referrerUser   User?    @relation("Referrer", fields: [referrerUserId], references: [id])
+  sessionId      String?
+  merchant       String?
+  device         String?
   createdAt      DateTime @default(now())
   referrer       String?
   userAgent      String?
+
+  @@index([productId, createdAt])
+  @@index([createdAt])
 }
 
 model Commission {
