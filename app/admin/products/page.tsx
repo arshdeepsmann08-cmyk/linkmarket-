@@ -76,10 +76,12 @@ export default async function Products({
     const uniqueMap = new Map();
     for (const item of rawMerchants) {
       if (item.merchant && !uniqueMap.has(item.merchant)) {
-        uniqueMap.set(item.merchant, { merchant: item.merchant });
+        uniqueMap.set(item.merchant, { merchant: String(item.merchant) });
       }
     }
-    merchants = Array.from(uniqueMap.values()).sort((a, b) => a.merchant.localeCompare(b.merchant));
+    merchants = Array.from(uniqueMap.values()).sort((a, b) =>
+      String(a.merchant).localeCompare(String(b.merchant))
+    );
   } catch (err) {
     console.error("Error fetching merchants in admin:", err);
     merchants = [];
@@ -164,65 +166,81 @@ export default async function Products({
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-b last:border-0 hover:bg-slate-50/50">
-                <td className="p-3">
-                  <img
-                    src={p.imageUrl}
-                    alt=""
-                    className="h-10 w-10 rounded object-cover bg-slate-100 border border-slate-200"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        "https://placehold.co/100x100/f1f5f9/64748b?text=Product";
-                    }}
-                  />
-                </td>
-                <td className="max-w-[220px]">
-                  <b className="line-clamp-1">{p.title}</b>
-                  {p.brand && <span className="block muted text-xs">{p.brand}</span>}
-                </td>
-                <td>{p.merchant || "Amazon"}</td>
-                <td className="font-bold">{currency(p.price, p.currency || "INR")}</td>
-                <td>{p.category?.name || "Uncategorized"}</td>
-                <td>
-                  <span className={p.isActive ? "text-emerald-700 font-semibold" : "text-stone-500"}>
-                    {p.isActive ? "Active" : "Inactive"}
-                  </span>
-                </td>
-                <td className="font-medium">{p._count?.clicks || 0}</td>
-                <td className="text-xs muted">
-                  {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "-"}
-                </td>
-                <td>
-                  <div className="flex items-center gap-3">
-                    <Link className="font-bold text-slate-800 hover:underline text-xs" href={`/admin/products/${p.id}/edit`}>
-                      Edit
-                    </Link>
-                    <form action={`/api/admin/products/${p.id}`} method="post" className="inline">
-                      <input type="hidden" name="intent" value="toggle-active" />
-                      <button className="font-bold text-amber-800 hover:underline cursor-pointer text-xs">
-                        {p.isActive ? "Deactivate" : "Reactivate"}
-                      </button>
-                    </form>
-                    <form
-                      action={`/api/admin/products/${p.id}`}
-                      method="post"
-                      className="inline"
-                      onSubmit={(e) => {
-                        if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
-                          e.preventDefault();
-                        }
+            {products.map((p) => {
+              let formattedPrice = "?0";
+              try {
+                formattedPrice = currency(p.price, p.currency || "INR");
+              } catch {
+                formattedPrice = "?0";
+              }
+
+              let createdDateStr = "-";
+              try {
+                if (p.createdAt) {
+                  createdDateStr = new Date(p.createdAt).toLocaleDateString();
+                }
+              } catch {
+                createdDateStr = "-";
+              }
+
+              return (
+                <tr key={p.id} className="border-b last:border-0 hover:bg-slate-50/50">
+                  <td className="p-3">
+                    <img
+                      src={p.imageUrl || "https://placehold.co/100x100/f1f5f9/64748b?text=Product"}
+                      alt=""
+                      className="h-10 w-10 rounded object-cover bg-slate-100 border border-slate-200"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          "https://placehold.co/100x100/f1f5f9/64748b?text=Product";
                       }}
-                    >
-                      <input type="hidden" name="intent" value="delete" />
-                      <button className="font-bold text-red-600 hover:text-red-800 hover:underline cursor-pointer text-xs">
-                        Delete
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                    />
+                  </td>
+                  <td className="max-w-[220px]">
+                    <b className="line-clamp-1">{p.title || "Untitled Product"}</b>
+                    {p.brand && <span className="block muted text-xs">{p.brand}</span>}
+                  </td>
+                  <td>{p.merchant || "Amazon"}</td>
+                  <td className="font-bold">{formattedPrice}</td>
+                  <td>{p.category?.name || "Uncategorized"}</td>
+                  <td>
+                    <span className={p.isActive ? "text-emerald-700 font-semibold" : "text-stone-500"}>
+                      {p.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td className="font-medium">{p._count?.clicks || 0}</td>
+                  <td className="text-xs muted">{createdDateStr}</td>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <Link className="font-bold text-slate-800 hover:underline text-xs" href={`/admin/products/${p.id}/edit`}>
+                        Edit
+                      </Link>
+                      <form action={`/api/admin/products/${p.id}`} method="post" className="inline">
+                        <input type="hidden" name="intent" value="toggle-active" />
+                        <button className="font-bold text-amber-800 hover:underline cursor-pointer text-xs">
+                          {p.isActive ? "Deactivate" : "Reactivate"}
+                        </button>
+                      </form>
+                      <form
+                        action={`/api/admin/products/${p.id}`}
+                        method="post"
+                        className="inline"
+                        onSubmit={(e) => {
+                          if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        <input type="hidden" name="intent" value="delete" />
+                        <button className="font-bold text-red-600 hover:text-red-800 hover:underline cursor-pointer text-xs">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {!products.length && (
